@@ -9,13 +9,12 @@ byte sAddresses[][6] = {"BasT","BasR"};
 
 const bool autoPair = true;
 String mode = "none";
-byte ctrlData[10];
-int maxData = 10;
+int maxRetry = 3;
+int retry = 0;
 
 //Radio Pair
 typedef struct{
   int id = 0; // Id number for each fighter
-  bool paired = false;
 }
 pair;
 pair pairData;
@@ -24,10 +23,14 @@ pair pairData;
 //Controller Data
 typedef struct{
   int id = 0;
-  int leftSpeed = 0;   
-  int rightSpeed = 0;
+  String state = "none";
   bool btn1 = 0;
   bool btn2 = 0;
+  bool btn3 = 0;
+  bool btn4 = 0;
+  int boost = 0;
+  int remoteVoltage = 0;
+  int fighterVoltage = 0;
 }
 ctrl;
 ctrl ctrlData;
@@ -35,7 +38,6 @@ ctrl ctrlData;
 boolean pairNow(){
   if (mode == "remote"){
     pairData.id = 0;
-    pairData.paired = false;
     radio.begin();
     radio.setChannel(1);
     radio.stopListening();
@@ -46,10 +48,9 @@ boolean pairNow(){
     if (radio.available())
     {
       radio.read(&pairData, sizeof(pairData));
-      pairData.paired = true;
       radio.setChannel(pairData.id);
       radio.stopListening();
-      radio.openWritingPipe(sAddresses[0]);      
+      radio.openWritingPipe(sAddresses[0]);
       return true;      
     }
   } else if (mode == "fighter"){
@@ -64,7 +65,6 @@ boolean pairNow(){
     rslt = radio.write( &pairData, sizeof(pairData) );
 
     if (rslt) {
-          pairData.paired = true;
           radio.setChannel(pairData.id);
           radio.stopListening();
           radio.openReadingPipe(1, sAddresses[0]);
@@ -81,33 +81,19 @@ boolean pairNow(){
   return false;
 }
 
-void sendData(byte data[]){
-  radio.write( &data, sizeof(10) );
-}
-
-byte receiveData(){
-  byte rdata[10];
-  if (radio.available()){
-    radio.read(&rdata, sizeof(rdata));
-  }
-  Serial.println(rdata[2]);
-  return rdata;
-}
-
 void init(String setMode, int setId){
   mode = setMode;
   pairData.id = setId;
+  ctrlData.id = setId;
 }
-
-byte sData[10];
 
 void setup() {
   boolean paired = false;
   // put your setup code here, to run once:
   Serial.begin(9600);
   Serial.println("Init");
-  // init("fighter", 10);
-  init("remote", 0);
+  init("fighter", 10);
+  // init("remote", 0);
 
   while (!paired)
   {
@@ -116,36 +102,27 @@ void setup() {
   }
   Serial.print("Id: ");
   Serial.println(pairData.id);
-  sData[1] = {1};
+  delay(2000);
 }
 
 
 void loop() {
   if (mode == "fighter")
   {
-    sData[0] = byte("Hello");
-    sData[1] = sData[1] + 1;
-    sData[2] = 2;
-    sData[3] = 3000;
+    Serial.println("readData");
+    if (radio.available()){
+      radio.read(&ctrlData, sizeof(ctrlData));
+      Serial.print("Boost:");
+      Serial.println(ctrlData.boost);
+    } else{
 
-    Serial.println("sendData");
-    Serial.println(sData[1]);
-    sendData(sData);
+    }
   }
 
   if (mode == "remote")
   {
-    // byte* rsData = receiveData();
-    receiveData();
-    // Serial.println(rsData[2]);
-    
-    // for (size_t i = 0; i < 11; i++)
-    // {
-    //   Serial.println(i);
-    //   Serial.println(rsData[i]);
-      // delay(500);
-    // }
-    // delete[] rsData;
-    delay(100);
+    ctrlData.boost = ctrlData.boost + 1;
+    Serial.println("sendData");
+    radio.write( &ctrlData, sizeof(ctrlData) );
   }
 }
